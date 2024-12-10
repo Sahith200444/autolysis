@@ -10,7 +10,10 @@ aiproxy_token = os.getenv("eyJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6IjIyZjMwMDE2NTJAZHMu
 
 def load_data(file_path):
     """Load data from a CSV file."""
-    return pd.read_csv(file_path)
+    try:
+        return pd.read_csv(file_path, encoding='utf-8')
+    except UnicodeDecodeError:
+        return pd.read_csv(file_path, encoding='latin1')
 
 def basic_analysis(df):
     """Perform basic analysis on the dataset."""
@@ -131,5 +134,5 @@ def main(file_path):
     create_readme(analysis, story, image_files)
 
 if __name__ == "__main__":
-    file_path = 'd:/goodreads.csv'
+    file_path = 'd:/media.csv'
     main(file_path)
