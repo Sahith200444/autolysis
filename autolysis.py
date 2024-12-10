@@ -5,7 +5,6 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import requests
 
-# Set your AI Proxy token from the environment variable
 aiproxy_token = os.getenv("eyJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6IjIyZjMwMDE2NTJAZHMuc3R1ZHkuaWl0bS5hYy5pbiJ9.6Awo3wRrJsUNnYb5ExJuXDn0QfrsZ7uhTCjp6ILYsyA")
 
 def load_data(file_path):
