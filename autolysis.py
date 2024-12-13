@@ -133,5 +133,5 @@ def main(file_path):
     create_readme(analysis, story, image_files)
 
 if __name__ == "__main__":
-    file_path = 'd:/media.csv'
+    file_path = 'd:/goodreads.csv'
     main(file_path)
