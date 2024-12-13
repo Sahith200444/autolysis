@@ -5,10 +5,13 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import requests
 
+# Get API token from the environment variables (ensure this is set in the environment)
 aiproxy_token = os.getenv("eyJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6IjIyZjMwMDE2NTJAZHMuc3R1ZHkuaWl0bS5hYy5pbiJ9.6Awo3wRrJsUNnYb5ExJuXDn0QfrsZ7uhTCjp6ILYsyA")
 
 def load_data(file_path):
     """Load data from a CSV file."""
+    if not os.path.isfile(file_path):
+        raise FileNotFoundError(f"File not found: {file_path}")
     try:
         return pd.read_csv(file_path, encoding='utf-8')
     except UnicodeDecodeError:
@@ -63,6 +66,9 @@ def generate_plots(df):
 
 def query_llm(prompt):
     """Query the LLM with a given prompt."""
+    if not aiproxy_token:
+        raise EnvironmentError("AIPROXY_TOKEN not found in environment variables.")
+    
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {aiproxy_token}"
@@ -112,7 +118,10 @@ def create_readme(analysis, story, image_files):
         for img in image_files:
             f.write(f"![{img}](./{img})\n")
 
-def main(file_path):
+def main():
+    # Assume the CSV is in the same directory as the script
+    file_path = os.path.join(os.path.dirname(__file__), 'goodreads.csv')
+    
     df = load_data(file_path)
     analysis = basic_analysis(df)
     
@@ -133,5 +142,4 @@ def main(file_path):
     create_readme(analysis, story, image_files)
 
 if __name__ == "__main__":
-    file_path = 'd:/goodreads.csv'
-    main(file_path)
+    main()
