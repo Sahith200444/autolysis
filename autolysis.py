@@ -15,69 +15,96 @@ def load_data(file_path):
     except UnicodeDecodeError:
         return pd.read_csv(file_path, encoding='latin1')
 
-# Function for basic analysis on the dataset
-def basic_analysis(df):
-    """Perform basic analysis on the dataset."""
+# Function for extended analysis on the dataset
+def extended_analysis(df):
+    """Perform extended analysis on the dataset."""
     analysis = {}
     analysis['shape'] = df.shape
     analysis['columns'] = df.columns.tolist()
     analysis['dtypes'] = df.dtypes.apply(lambda x: str(x)).tolist()
     analysis['summary'] = df.describe(include='all').to_dict()
     analysis['missing_values'] = df.isnull().sum().to_dict()
+
+    # Detect columns with missing values
+    analysis['missing_value_columns'] = [col for col, val in analysis['missing_values'].items() if val > 0]
+    
+    # Outlier detection using IQR for numeric columns
+    numeric_cols = df.select_dtypes(include='number').columns
+    analysis['outliers'] = {}
+    for col in numeric_cols:
+        Q1 = df[col].quantile(0.25)
+        Q3 = df[col].quantile(0.75)
+        IQR = Q3 - Q1
+        lower_bound = Q1 - 1.5 * IQR
+        upper_bound = Q3 + 1.5 * IQR
+        outlier_count = df[(df[col] < lower_bound) | (df[col] > upper_bound)].shape[0]
+        analysis['outliers'][col] = outlier_count
+
     return analysis
 
-# Function to generate visualizations and save them as PNG files
+# Function to generate up to 3 visualizations and save them as PNG files
 def generate_plots(df, output_dir):
-    """Generate basic visualizations and save them as PNG files."""
+    """Generate up to 3 visualizations and save them as PNG files."""
     sns.set(style="darkgrid")
     image_files = []
-    image_limit = 3  # Maximum number of images to generate
-    image_count = 0
+    generated_count = 0
 
-    # Distribution plot for numerical columns
+    # Distribution plot for a numerical column
     numeric_cols = df.select_dtypes(include='number').columns
-    for col in numeric_cols:
-        if image_count >= image_limit:
-            break
+    if numeric_cols.any():
         plt.figure(figsize=(10, 6))
-        sns.histplot(df[col], kde=True)
-        plt.title(f'Distribution of {col}')
-        image_file = os.path.join(output_dir, f'{col}_distribution.png')
+        sns.histplot(df[numeric_cols[0]], kde=True)
+        plt.title(f'Distribution of {numeric_cols[0]}')
+        image_file = os.path.join(output_dir, f'{numeric_cols[0]}_distribution.png')
         plt.savefig(image_file)
         image_files.append(image_file)
         plt.close()
-        image_count += 1
+        generated_count += 1
 
-    # Pairplot for numerical columns
-    if image_count < image_limit and len(numeric_cols) > 1:
-        sns.pairplot(df[numeric_cols])
-        image_file = os.path.join(output_dir, 'pairplot.png')
+    # Boxplot for the second numerical column
+    if len(numeric_cols) > 1 and generated_count < 3:
+        plt.figure(figsize=(8, 6))
+        sns.boxplot(x=df[numeric_cols[1]])
+        plt.title(f'Boxplot of {numeric_cols[1]}')
+        image_file = os.path.join(output_dir, f'{numeric_cols[1]}_boxplot.png')
         plt.savefig(image_file)
         image_files.append(image_file)
         plt.close()
-        image_count += 1
+        generated_count += 1
 
-    # Heatmap for correlation matrix
-    if image_count < image_limit and len(numeric_cols) > 1:
+    # Correlation heatmap
+    if len(numeric_cols) > 1 and generated_count < 3:
         corr = df[numeric_cols].corr()
-        plt.figure(figsize=(12, 8))
+        plt.figure(figsize=(10, 8))
         sns.heatmap(corr, annot=True, cmap='coolwarm', fmt='.2f')
         plt.title('Correlation Matrix')
         image_file = os.path.join(output_dir, 'correlation_matrix.png')
         plt.savefig(image_file)
         image_files.append(image_file)
         plt.close()
-        image_count += 1
+        generated_count += 1
 
     return image_files
 
+# Function to construct a concise dynamic LLM prompt
+def construct_dynamic_prompt(analysis):
+    """Construct a concise LLM prompt based on dataset characteristics."""
+    prompt = (
+        f"Dataset Analysis:\n"
+        f"- Shape: {analysis['shape']}\n"
+        f"- Columns: {', '.join(analysis['columns'])}\n"
+        f"- Missing Value Columns: {', '.join(analysis['missing_value_columns']) if analysis['missing_value_columns'] else 'None'}\n"
+        f"- Columns with Outliers: {', '.join([col for col, cnt in analysis['outliers'].items() if cnt > 0])}"
+    )
+    return prompt
+
 # Function to query the LLM for insights
 def query_llm(prompt):
-    """Query the LLM with a given prompt."""
+    """Query the LLM with a concise prompt."""
     aiproxy_token = os.getenv("eyJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6IjIyZjMwMDE2NTJAZHMuc3R1ZHkuaWl0bS5hYy5pbiJ9.6Awo3wRrJsUNnYb5ExJuXDn0QfrsZ7uhTCjp6ILYsyA")
     if not aiproxy_token:
         raise EnvironmentError("AIPROXY_TOKEN not found in environment variables.")
-    
+
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {aiproxy_token}"
@@ -91,14 +118,14 @@ def query_llm(prompt):
         headers=headers,
         json=data
     )
-    
+
     if response.status_code != 200:
         raise Exception(f"Error querying LLM: {response.status_code} {response.text}")
-    
+
     response_json = response.json()
     if 'choices' not in response_json:
         raise KeyError(f"Unexpected response format: {response_json}")
-    
+
     return response_json['choices'][0]['message']['content'].strip()
 
 # Function to create the README.md with analysis story and images
@@ -108,69 +135,41 @@ def create_readme(analysis, story, image_files, output_dir):
     with open(readme_path, "w") as f:
         f.write("# Automated Data Analysis Report\n\n")
         f.write("## Analysis Summary\n\n")
-        f.write("### Dataset Overview\n")
-        f.write(f"Number of rows: {analysis['shape'][0]}\n")
-        f.write(f"Number of columns: {analysis['shape'][1]}\n\n")
-        f.write("### Column Information\n")
-        for col, dtype in zip(analysis['columns'], analysis['dtypes']):
-            f.write(f"- {col} ({dtype})\n")
-        f.write("\n### Missing Values\n")
-        for col, missing in analysis['missing_values'].items():
-            f.write(f"- {col}: {missing} missing values\n")
-        f.write("\n### Summary Statistics\n")
-        for col, stats in analysis['summary'].items():
-            f.write(f"#### {col}\n")
-            for stat, value in stats.items():
-                f.write(f"- {stat}: {value}\n")
-            f.write("\n")
+        f.write(f"- Shape of the dataset: {analysis['shape']}\n")
+        f.write(f"- Columns with Missing Values: {', '.join(analysis['missing_value_columns']) if analysis['missing_value_columns'] else 'None'}\n")
+        f.write(f"- Columns with Outliers: {', '.join([col for col, cnt in analysis['outliers'].items() if cnt > 0])}\n\n")
         f.write("## Analysis Story\n\n")
         f.write(story)
-        f.write("\n## Visualizations\n\n")
+        f.write("\n\n## Visualizations\n\n")
         for img in image_files:
             f.write(f"![{img}](./{img})\n")
 
 # Main function to run the analysis
 def main():
-    # Check if the file path is provided via command-line argument
     if len(sys.argv) != 2:
         print("Usage: python autolysis.py <path_to_csv_file>")
         sys.exit(1)
 
     file_path = sys.argv[1]
-    
-    # Check if the file exists
     if not os.path.isfile(file_path):
         print(f"Error: File '{file_path}' not found.")
         sys.exit(1)
 
-    # Create output directory based on the file name
     output_dir = os.path.splitext(os.path.basename(file_path))[0]
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
+    os.makedirs(output_dir, exist_ok=True)
 
-    # Load and analyze the dataset
     df = load_data(file_path)
-    analysis = basic_analysis(df)
-    
-    # Generate visualizations
+    analysis = extended_analysis(df)
     image_files = generate_plots(df, output_dir)
-    
-    # Query the LLM for analysis insights
-    prompt = (
-        "Analyze the following dataset summary and provide insights:\n\n"
-        f"Columns: {', '.join(analysis['columns'])}\n"
-        f"Data types: {', '.join(analysis['dtypes'])}\n"
-        f"Summary statistics: {analysis['summary']}\n"
-        f"Missing values: {analysis['missing_values']}\n"
-    )
+
+    prompt = construct_dynamic_prompt(analysis)
     try:
         story = query_llm(prompt)
     except Exception as e:
         story = f"Failed to query LLM: {e}"
-    
-    # Create README file with the analysis and visualizations
-    create_readme(analysis, story, image_files, output_dir)
 
-# Entry point for the script
+    create_readme(analysis, story, image_files, output_dir)
+    print("Analysis completed. Check the output directory for results.")
+
 if __name__ == "__main__":
     main()
