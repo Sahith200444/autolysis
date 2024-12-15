@@ -55,8 +55,6 @@ def generate_plots(df, output_dir):
         plt.figure(figsize=(10, 6))
         sns.histplot(df[numeric_cols[0]], kde=True)
         plt.title(f'Distribution of {numeric_cols[0]}')
-        plt.xlabel(numeric_cols[0])
-        plt.ylabel('Frequency')
         image_file = os.path.join(output_dir, f'{numeric_cols[0]}_distribution.png')
         plt.savefig(image_file)
         image_files.append(image_file)
@@ -68,7 +66,6 @@ def generate_plots(df, output_dir):
         plt.figure(figsize=(8, 6))
         sns.boxplot(x=df[numeric_cols[1]])
         plt.title(f'Boxplot of {numeric_cols[1]}')
-        plt.xlabel(numeric_cols[1])
         image_file = os.path.join(output_dir, f'{numeric_cols[1]}_boxplot.png')
         plt.savefig(image_file)
         image_files.append(image_file)
@@ -161,15 +158,15 @@ def main():
     output_dir = os.path.splitext(os.path.basename(file_path))[0]
     os.makedirs(output_dir, exist_ok=True)
 
+    df = load_data(file_path)
+    analysis = extended_analysis(df)
+    image_files = generate_plots(df, output_dir)
+
+    prompt = construct_dynamic_prompt(analysis)
     try:
-        df = load_data(file_path)
-        analysis = extended_analysis(df)
-        image_files = generate_plots(df, output_dir)
-        
-        prompt = construct_dynamic_prompt(analysis)
         story = query_llm(prompt)
     except Exception as e:
-        story = f"Failed to complete the analysis: {e}"
+        story = f"Failed to query LLM: {e}"
 
     create_readme(analysis, story, image_files, output_dir)
     print("Analysis completed. Check the output directory for results.")
