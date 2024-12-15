@@ -31,10 +31,14 @@ def generate_plots(df, output_dir):
     """Generate basic visualizations and save them as PNG files."""
     sns.set(style="darkgrid")
     image_files = []
+    image_limit = 3  # Maximum number of images to generate
+    image_count = 0
 
     # Distribution plot for numerical columns
     numeric_cols = df.select_dtypes(include='number').columns
     for col in numeric_cols:
+        if image_count >= image_limit:
+            break
         plt.figure(figsize=(10, 6))
         sns.histplot(df[col], kde=True)
         plt.title(f'Distribution of {col}')
@@ -42,17 +46,19 @@ def generate_plots(df, output_dir):
         plt.savefig(image_file)
         image_files.append(image_file)
         plt.close()
+        image_count += 1
 
     # Pairplot for numerical columns
-    if len(numeric_cols) > 1:
+    if image_count < image_limit and len(numeric_cols) > 1:
         sns.pairplot(df[numeric_cols])
         image_file = os.path.join(output_dir, 'pairplot.png')
         plt.savefig(image_file)
         image_files.append(image_file)
         plt.close()
+        image_count += 1
 
     # Heatmap for correlation matrix
-    if len(numeric_cols) > 1:
+    if image_count < image_limit and len(numeric_cols) > 1:
         corr = df[numeric_cols].corr()
         plt.figure(figsize=(12, 8))
         sns.heatmap(corr, annot=True, cmap='coolwarm', fmt='.2f')
@@ -61,6 +67,7 @@ def generate_plots(df, output_dir):
         plt.savefig(image_file)
         image_files.append(image_file)
         plt.close()
+        image_count += 1
 
     return image_files
 
@@ -126,7 +133,7 @@ def create_readme(analysis, story, image_files, output_dir):
 def main():
     # Check if the file path is provided via command-line argument
     if len(sys.argv) != 2:
-        print("Usage: uv run autolysis.py <path_to_csv_file>")
+        print("Usage: python autolysis.py <path_to_csv_file>")
         sys.exit(1)
 
     file_path = sys.argv[1]
